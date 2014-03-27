@@ -1,0 +1,1121 @@
+<?xml version='1.0' standalone='yes'?>
+
+<!DOCTYPE PLUGIN [
+<!ENTITY plugin "pyLoad">
+<!ENTITY author "overbyrn">
+<!ENTITY plgver "0.6">
+<!ENTITY pkgnam "pyload">
+<!ENTITY pkg "/boot/packages">
+<!ENTITY plg "/boot/config/plugins/pyload">
+<!ENTITY img "/boot/config/plugins/images">
+<!ENTITY gui "/usr/local/emhttp/plugins">
+<!ENTITY url1 "https://raw.github.com/overbyrn/UnRAID/master">
+<!ENTITY url2 "https://dl.dropbox.com/u/572553/UnRAID">
+<!ENTITY dev "false"><!-- set to "true" during plugin development -->
+]>
+
+<PLUGIN>
+<!--
+
+Copyright 2013, Rich Manton (overbyrn)
+
+This Plugin installs and provides pyLoad support for unRAID.
+
+Plugin file locations:
+ /boot/plugins/pyload_overbyrn.plg                                             # this file
+ /tmp/plugin-prepare                                                           # network readiness script
+ /tmp/plugin-cleanup                                                           # deletion script
+ /tmp/plugin-chkcfg                                                            # config update check script
+ /tmp/plugin-install                                                           # installation script
+ 
+ /boot/packages/git-1.7.4.4-i486-1.txz                                         # pyload prerequisite package
+ /boot/packages/python-2.6.6-i486-1.txz                                        # pyload prerequisite package
+ /boot/packages/pycurl-7.19.0-i686-1.txz                                       # pyload prerequisite package
+ /boot/packages/curl-7.21.4-i486-1.txz                                         # pyload prerequisite package 
+ /boot/packages/sqlite-3.7.14.1-i486-1_slack14.0.txz                           # pyload prerequisite package
+ /boot/packages/infozip-6.0-i486-1.txz                                         # pyload prerequisite package (unzip)
+ /boot/packages/unrar-4.2.4-i486-1alien.tgz                                    # pyload prerequisite package (unrar)
+ /boot/packages/zlib-1.2.5-i486-4.txz                                          # curl dependency
+ /boot/packages/libidn-1.19-i486-1.txz                                         # curl dependency
+
+ /boot/packages/pycrypto-2.0.1-i486-1gsb.txz                                   # pyload optional package
+ /boot/packages/spidermonkey-1.7.0-i486-3ng.txz                                # pyload optional package
+ /boot/packages/tesseract-3.00-i486-1sl.txz                                    # pyload optional package 
+ /boot/packages/pil-1.1.7-i486-1.txz                                           # pyload optional package
+ /boot/packages/libjpeg-v8a-i486-1.txz                                         # pyload optional package
+ /boot/packages/libpng-1.4.12-i486-1_slack13.1.txz                             # pyload optional package
+ /boot/packages/libtiff-3.9.6-i486-1_slack13.1.txz                             # pyload optional package 
+
+ /boot/config/plugins/pyload/pyload.png                                        # icon file (copied to webgui plugin dir)
+ /boot/config/plugins/images/device_status.png                                 # icon file (copied to webgui plugin dir)
+ /boot/config/plugins/images/new_config.png                                    # icon file (copied to webgui plugin dir)
+ /boot/config/plugins/images/information.png                                   # icon file (copied to webgui plugin dir)
+ 
+ /boot/config/plugins/pyload/pyload.cfg                                        # non-volatile configuration
+ /boot/config/plugins/pyload/files.db                                          # default pyload sqlite db (contains initial admin userid)
+ /etc/rc.d/rc.pyload                                                           # plugin control script
+ /usr/local/emhttp/plugins/pyload/pyload.page                                  # page file for webGui menu system
+ /usr/local/emhttp/plugins/pyload/pyload.php                                   # webGui page code
+ /usr/local/emhttp/plugins/pyload/pyloadeoctl.php                              # webGui back-end control 
+ 
+ /usr/local/emhttp/plugins/pyload/event/disks_mounted                          # script to execute for emhttp event
+ /usr/local/emhttp/plugins/pyload/event/unmounting_disks                       # script to execute for emhttp event
+ /var/log/plugins/pyload                                                       # created upon install success
+ /usr/local/pyload                                                             # application installation location
+ /var/run/pyload/pyload.pid                                                    # run-time pid file
+
+-->
+
+<FILE Name="/tmp/plugin-prepare" Run="/bin/bash">
+<INLINE>
+# Wait until network is ready
+timer=30
+while [ $timer -gt 0 ]; do
+  gateway=$(route -n | awk '/^0.0.0.0/ {print $2}')
+  if [ -n "$gateway" ] &amp;&amp; [ $(ping -q -n -c 1 $gateway | awk -F, '/received/ {print $2}' | awk '{print $1}') -eq 1 ]; then
+    break
+  fi
+  timer=$((timer-1))
+  sleep 1
+done
+if [ $timer -eq 0 ]; then
+  echo "No network communication !!!"
+fi
+# Remove this script
+rm -f /tmp/plugin-prepare
+</INLINE>
+</FILE>
+
+<FILE Name="&plg;/pyload.png">
+<URL>-q --no-check-certificate &url2;/plugin.images/pyload.png</URL>
+</FILE>
+
+<FILE Name="&img;/device_status.png">
+<URL>-q --no-check-certificate &url2;/plugin.images/device_status.png</URL>
+</FILE>
+
+<FILE Name="&img;/new_config.png">
+<URL>-q --no-check-certificate &url2;/plugin.images/new_config.png</URL>
+</FILE>
+
+<FILE Name="&img;/information.png">
+<URL>-q --no-check-certificate &url2;/plugin.images/information.png</URL>
+</FILE>
+
+<FILE Name="&pkg;/git-1.7.4.4-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/git-1.7.4.4-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/curl-7.21.4-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/curl-7.21.4-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/zlib-1.2.5-i486-4.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/zlib-1.2.5-i486-4.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/libidn-1.19-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/libidn-1.19-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/python-2.6.6-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/python-2.6.6-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/pycurl-7.19.0-i686-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/pycurl-7.19.0-i686-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/sqlite-3.7.14.1-i486-1_slack14.0.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/sqlite-3.7.14.1-i486-1_slack14.0.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/unrar-4.2.4-i486-1alien.tgz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/unrar-4.2.4-i486-1alien.tgz</URL>
+</FILE>
+
+<FILE Name="&pkg;/infozip-6.0-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/infozip-6.0-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/pil-1.1.7-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/pil-1.1.7-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/libjpeg-v8a-i486-1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/libjpeg-v8a-i486-1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/libpng-1.4.12-i486-1_slack13.1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/libpng-1.4.12-i486-1_slack13.1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/libtiff-3.9.6-i486-1_slack13.1.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/libtiff-3.9.6-i486-1_slack13.1.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/spidermonkey-1.7.0-i486-3ng.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/spidermonkey-1.7.0-i486-3ng.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/tesseract-3.00-i486-1sl.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/tesseract-3.00-i486-1sl.txz</URL>
+</FILE>
+
+<FILE Name="&pkg;/pycrypto-2.0.1-i486-1gsb.txz" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/pycrypto-2.0.1-i486-1gsb.txz</URL>
+</FILE>
+
+<FILE Name="&plg;/files.db" Run="upgradepkg --install-new">
+<URL>-q --no-check-certificate &url2;/packages/&pkgnam;/files.db</URL>
+</FILE>
+
+<FILE Name="/tmp/plugin-cleanup" Run="/bin/bash">
+<INLINE>
+# delete file but don't warn if file does not exist 
+rmNoWarn() {
+  test -e $1 &amp;&amp; rm $1 2>/dev/null
+}
+
+# delete directory but don't warn if directory does not exist 
+rmRecursiveNoWarn() {
+  test -e $1 &amp;&amp; rm -r $1 2>/dev/null
+}
+
+#Remove currently installed plugin files
+rmNoWarn /etc/rc.d/rc.pyload                           # control script
+rmNoWarn /var/run/pyload/pyload.pid                    # stale pid file
+rmRecursiveNoWarn /usr/local/emhttp/plugins/pyload     # pyload unraid webgui integration files
+rmNoWarn /var/log/plugins/pyload                       # record of previous plugin installation
+
+rm /tmp/plugin-cleanup
+</INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/pyload/pyload.cfg">
+<INLINE>
+<![CDATA[
+# pyLoad configuration
+SERVICE="disable"
+RUNAS="nobody"
+INSTALLDIR="/mnt/disk1/pyload"
+CREATE_LOG="True"
+LOG_DIR="/mnt/disk1/pyload/logs"
+LOG_COUNT="3"
+DOWNLOAD_DIR="/mnt/disk1/pyload/downloads"
+MIN_FREE_SPACE="200"
+INSTALL_HOST="0.0.0.0"
+INSTALL_PORT="8085"
+MAX_PARALLEL_DOWNLOAD="3"
+LIMIT_DOWNLOAD_SPEED="False"
+DOWNLOAD_SPEED="-1"
+MAX_CONNECTIONS_PER_DOWNLOAD="3"
+INSTALL_URL="https://github.com/pyload/pyload.git"
+BRANCH="stable"
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/pyload/pyload.conf">
+<INLINE>
+<![CDATA[
+version: 1
+
+remote - "Remote":
+    bool nolocalauth : "No authentication on local connections" = True
+    int port : "Port" = 7227
+    ip listenaddr : "Adress" = 0.0.0.0
+    bool activated : "Activated" = True
+
+log - "Log":
+    bool file_log : "File Log" = True
+    folder log_folder : "Folder" = Logs
+    int log_count : "Count" = 5
+    int log_size : "Size in kb" = 100
+    bool log_rotate : "Log Rotate" = True
+
+permission - "Permissions":
+    str group : "Groupname" = users
+    bool change_dl : "Change Group and User of Downloads" = False
+    bool change_file : "Change file mode of downloads" = False
+    str user : "Username" = user
+    str file : "Filemode for Downloads" = 0644
+    bool change_group : "Change group of running process" = False
+    str folder : "Folder Permission mode" = 0755
+    bool change_user : "Change user of running process" = False
+
+general - "General":
+    en;de;fr;it;es;nl;sv;ru;pl;cs;sr;pt_BR language : "Language" = en
+    folder download_folder : "Download Folder" = Downloads
+    bool debug_mode : "Debug Mode" = False
+    bool checksum : "Use Checksum" = False
+    int min_free_space : "Min Free Space (MB)" = 200
+    bool folder_per_package : "Create folder for each package" = True
+    int renice : "CPU Priority" = 0
+
+ssl - "SSL":
+    bool activated : "Activated"= False
+    file cert : "SSL Certificate" = ssl.crt
+    file key : "SSL Key" = ssl.key
+    
+webinterface - "Webinterface":
+    bool activated : "Activated" = True
+    builtin;threaded;fastcgi;lightweight server : "Server" = builtin
+    bool https : "Use HTTPS" = False
+    ip host : "IP" = 0.0.0.0
+    int port : "Port" = 8100
+    str template : "Template" = default
+    str prefix: "Path Prefix" =
+
+proxy - "Proxy":
+    str address : "Address" = "localhost"
+    int port : "Port" = 7070
+    http;socks4;socks5 type : "Protocol" = http
+    str username : "Username" = None
+    password password : "Password" = None
+    bool proxy : "Use Proxy" = False    
+
+reconnect - "Reconnect":
+    bool activated : "Use Reconnect" = False
+    str method : "Method" = None
+    time startTime : "Start" = 0:00
+    time endTime : "End" = 0:00
+
+download - "Download":
+    int chunks : "Max connections for one download" = 3
+    int max_downloads : "Max Parallel Downloads" = 3
+    int max_speed : "Max Download Speed in kb/s" = -1
+    bool limit_speed : "Limit Download Speed" = False
+    str interface : "Download interface to bind (ip or Name)" = None
+    bool ipv6 : "Allow IPv6" = False
+    bool skip_existing : "Skip already existing files" = False
+
+downloadTime - "Download Time":
+    time start : "Start" = 0:00
+    time end : "End" = 0:00
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/tmp/plugin-chkcfg" Run="/bin/bash">
+<INLINE>
+<![CDATA[
+#!/bin/bash
+
+# try and account for previous pyload plugin version. add new pyload.cfg options if missing
+paramchk=$(cat /boot/config/plugins/pyload/pyload.cfg | grep INSTALL_URL)
+if [[ $paramchk = "" ]]; then
+    echo "" >> /boot/config/plugins/pyload/pyload.cfg
+    echo "INSTALL_URL=\"https://github.com/pyload/pyload.git\"" >> /boot/config/plugins/pyload/pyload.cfg
+fi
+paramchk=$(cat /boot/config/plugins/pyload/pyload.cfg | grep BRANCH)
+if [[ $paramchk = "" ]]; then
+    echo "" >> /boot/config/plugins/pyload/pyload.cfg
+    echo "BRANCH=\"stable\"" >> /boot/config/plugins/pyload/pyload.cfg
+fi
+
+rm /tmp/plugin-chkcfg
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/pyload/pyload.png">
+<LOCAL>/boot/config/plugins/pyload/pyload.png</LOCAL>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/pyload/device_status.png">
+<LOCAL>/boot/config/plugins/images/device_status.png</LOCAL>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/pyload/new_config.png">
+<LOCAL>/boot/config/plugins/images/new_config.png</LOCAL>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/pyload/information.png">
+<LOCAL>/boot/config/plugins/images/information.png</LOCAL>
+</FILE>
+
+<FILE Name="/etc/rc.d/rc.pyload" Mode="0770">
+<INLINE>
+<![CDATA[
+#!/bin/bash
+# start|stop|restart|enable|disable|install|buttonstart|datacheck|updateplg|getver
+
+pyload_start()
+{
+  # no-op if not enabled
+  if [ $SERVICE != "enable" ]; then
+    return
+  fi
+
+  # no-op if already running
+  if [ -f /var/run/pyload/pyload.pid ]; then
+    return
+  fi
+
+  # if not installed yet, call install function
+  if [[ ! -f "$INSTALLDIR/pyLoadCore.py" ]]; then
+    pyload_install
+  fi
+
+  echo "Starting pyLoad ..."
+  sleep 2
+  
+  CMDLINE="sudo -u $RUNAS python $INSTALLDIR/pyLoadCore.py -d --configdir=$INSTALLDIR --pidfile=/var/run/pyload/pyload.pid --daemon > /dev/null 2>&1"
+  nohup $CMDLINE > /dev/null 2>&1 &
+  
+  echo "... OK"
+  sleep 2
+  
+}
+
+pyload_stop()
+{
+  # no-op if already stopped
+  if [ ! -f /var/run/pyload/pyload.pid ]; then
+    return
+  fi
+  
+  echo "Stopping pyLoad ..."
+  sleep 2
+  
+  #kill pyload process
+  /usr/bin/python $INSTALLDIR/pyLoadCli.py kill
+ 
+  echo "... OK"
+  sleep 2
+}
+
+pyload_restart()
+{
+  pyload_stop
+  pyload_start
+}
+
+pyload_buttonstart()
+{
+  CONFIG="/boot/config/plugins/pyload/pyload.cfg"
+  if [ -f $CONFIG ]; then
+    # a less greedy sed.  only replaces the first occurance of disabled with enabled.  ie. will only hit service line which is (usually) always first in cfg
+    sed -i "0,/"disable"/s/"disable"/"enable/"" $CONFIG 2>/dev/null
+    SERVICE=enable
+    pyload_start
+  fi
+}
+
+write_config()
+{
+  echo "# pyLoad configuration:" > /boot/config/plugins/pyload/pyload.cfg
+  echo "SERVICE=\"$SERVICE\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "RUNAS=\"$RUNAS\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "INSTALLDIR=\"$INSTALLDIR\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "CREATE_LOG=\"$CREATE_LOG\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "LOG_DIR=\"$LOG_DIR\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "LOG_COUNT=\"$LOG_COUNT\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "DOWNLOAD_DIR=\"$DOWNLOAD_DIR\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "MIN_FREE_SPACE=\"$MIN_FREE_SPACE\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "INSTALL_HOST=\"$INSTALL_HOST\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "INSTALL_PORT=\"$INSTALL_PORT\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "MAX_PARALLEL_DOWNLOAD=\"$MAX_PARALLEL_DOWNLOAD\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "LIMIT_DOWNLOAD_SPEED=\"$LIMIT_DOWNLOAD_SPEED\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "DOWNLOAD_SPEED=\"$DOWNLOAD_SPEED\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "MAX_CONNECTIONS_PER_DOWNLOAD=\"$MAX_CONNECTIONS_PER_DOWNLOAD\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "INSTALL_URL=\"https://github.com/pyload/pyload.git\"" >> /boot/config/plugins/pyload/pyload.cfg
+  echo "BRANCH=\"stable\"" >> /boot/config/plugins/pyload/pyload.cfg
+}
+
+pyload_change_settings()
+{
+  #nb. when passing params from enable/disable functions, params will take new numbering. ie. $2 in enable will become the first ($1) param here, and so on
+  RUNAS=$1
+  INSTALLDIR=$2
+  CREATE_LOG=$3
+  LOG_DIR=$4
+  LOG_COUNT=$5
+  DOWNLOAD_DIR=$6
+  MIN_FREE_SPACE=$7
+  INSTALL_HOST=$8
+  INSTALL_PORT=$9
+  MAX_PARALLEL_DOWNLOAD=${10}
+  LIMIT_DOWNLOAD_SPEED=${11}
+  DOWNLOAD_SPEED=${12}
+  MAX_CONNECTIONS_PER_DOWNLOAD=${13}  
+}
+
+pyload_enable()
+{
+  SERVICE=$1 #enable
+  pyload_change_settings $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}
+  write_config
+  pyload_restart
+}
+
+pyload_disable()
+{
+  pyload_stop
+  SERVICE=$1 #disable
+  pyload_change_settings $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}
+  write_config
+}
+
+pyload_install()
+{
+  echo "Installing pyLoad ..."
+  sleep 2
+  
+  # install from pyLoad GitHub to Install Dir as set in plugin webgui page  
+  echo "Cloning from GitHub [branch:$BRANCH] [URL:$INSTALL_URL] into [$INSTALLDIR] ..."
+  sleep 1
+  git clone -b $BRANCH $INSTALL_URL $INSTALLDIR   # eg. git clone -b stable https://github.com/pyload/pyload.git /mnt/disk1/pyload
+  echo "... OK"
+  sleep 1
+  
+  echo "Configuring pyLoad ..."
+  sleep 1
+  # take template pyload.conf & overwrite with values from webgui. there is a default file in pyload/modules/config called default.conf, but contains tab/space mixture which mangles the sed commands.  use own vers.
+  cp /boot/config/plugins/pyload/pyload.conf $INSTALLDIR/pyload.conf
+
+  # copy files.db (pyload sqlite db) from plugin dir to install dir.  needed as default db contains default userID admin/admin.  would otherwise need pyload running once with -u to create users
+  cp /boot/config/plugins/pyload/files.db $INSTALLDIR/files.db
+  
+  sed -i 's#.*bool file_log : "File Log" =.*#    bool file_log : "File Log" = '"$CREATE_LOG"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*folder log_folder : "Folder" =.*#    folder log_folder : "Folder" = '"$LOG_DIR"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*int log_count : "Count" =.*#    int log_count : "Count" = '"$LOG_COUNT"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*folder download_folder : "Download Folder" =.*#    folder download_folder : "Download Folder" = '"$DOWNLOAD_DIR"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*int min_free_space : "Min Free Space (MB)" =.*#    int min_free_space : "Min Free Space (MB)" = '"$MIN_FREE_SPACE"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*ip host : "IP" =.*#    ip host : "IP" = '"$INSTALL_HOST"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*int max_downloads : "Max Parallel Downloads" =.*#    int max_downloads : "Max Parallel Downloads" = '"$MAX_PARALLEL_DOWNLOAD"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*bool limit_speed : "Limit Download Speed" =.*#    bool limit_speed : "Limit Download Speed" = '"$LIMIT_DOWNLOAD_SPEED"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*int max_speed : "Max Download Speed in kb/s" =.*#    int max_speed : "Max Download Speed in kb/s" = '"$DOWNLOAD_SPEED"'#' $INSTALLDIR/pyload.conf
+  sed -i 's#.*int chunks : "Max connections for one download" =.*#    int chunks : "Max connections for one download" = '"$MAX_CONNECTIONS_PER_DOWNLOAD"'#' $INSTALLDIR/pyload.conf
+  
+  #the next sed is different as it has to take account of the fact the regex is not unique and occurs three times in the file
+  #there is no way to differentiate between them. the following sed entry looks for the search string and when found, loops
+  #until it finds the next occurance. if found it performs the substitution and then enters a do nothing loop until end of file
+  #note to self: sed is evil
+  sed -i '/    int port : "Port" =.*/{:1 n;/    int port : "Port" =.*/{s#    int port : "Port" =.*#    int port : "Port" = '"$INSTALL_PORT"'#;:2 n;$!b2};b1}' $INSTALLDIR/pyload.conf
+    
+  chown -R nobody:users $INSTALLDIR
+  chmod -R 777 $INSTALLDIR
+  
+  mkdir -p -m 0777 $LOG_DIR
+  chown -R nobody:users $LOG_DIR
+  
+  mkdir -p -m 0777 $DOWNLOAD_DIR
+  chown -R nobody:users $DOWNLOAD_DIR
+  
+  echo "... OK"
+  sleep 2
+}
+
+pyload_datacheck()
+{
+  array=( ramfs proc tempfs sysfs )
+  fs=$( stat -f -c '%T' $INSTALLDIR )
+  if [ "$fs" = "msdos" ]; then
+    echo "<p style="color:red\;"><b>WARNING:</b> Your data is located on your flash drive. This can decrease the life span of your flash device!</p>"
+  else
+    for i in "${array[@]}"
+    do
+      if [ $i = $fs ]; then
+        echo "<p style="color:red\;"><b>WARNING:</b> Your data is not persistent and WILL NOT survive a reboot. Please locate data on persistent storage. eg. cache/array disk</p>"
+        break
+      else
+        echo "<p style="color:green\;">Your data will persist after a reboot</p>"
+        break
+      fi
+    done
+  fi
+}
+
+pyload_updateplg()
+{
+  if [ -f /boot/config/plugins/pyload_overbyrn.plg ]; then
+    pyload_stop;
+    echo "Downloading plugin ..."
+    sleep 2
+    wget -q -P /tmp --no-check-certificate https://raw.github.com/overbyrn/UnRAID/master/pyload_overbyrn.plg 2>/dev/null
+    if [ ! -f /tmp/pyload_overbyrn.plg ]; then
+      echo "Download failed, update aborted!"
+      sleep 2
+    else
+      echo "... OK"
+      sleep 1
+      echo  "Upgrading plugin ..."
+      sleep 1
+      mv -f /boot/config/plugins/pyload_overbyrn.plg /boot/config/plugins/pyload/pyload_overbyrn.plg.sav 2>/dev/null
+      mv -f /tmp/pyload_overbyrn.plg /boot/config/plugins/pyload_overbyrn.plg 2>/dev/null
+      /usr/local/sbin/installplg /boot/config/plugins/pyload_overbyrn.plg 2>/dev/null
+      echo "... OK"
+      sleep 2
+    fi
+    pyload_start;
+  fi
+}
+
+pyload_updateapp()
+{
+  pyloadstop
+  
+  # pull latest from github 
+  echo "Updating from GitHub [branch:$BRANCH] [URL:$INSTALL_URL] into [$INSTALLDIR] ..."
+  sleep 2
+  
+  cd $INSTALLDIR
+  git pull https://github.com/pyload/pyload.git
+  
+  echo "... OK"
+  sleep 2
+  
+  pyload_start
+}
+
+pyload_plgver()
+{
+  case "$1" in
+    'local')
+      if [ -f /boot/config/plugins/pyload_overbyrn.plg ]; then
+        VERSION=$(grep "<\!ENTITY plgver" /boot/config/plugins/pyload_overbyrn.plg | cut -d\" -f2)
+      else
+        VERSION=Unknown
+      fi        
+    ;;
+    'remote')
+      VERSION=$(wget --no-check-certificate -q https://raw.github.com/overbyrn/UnRAID/master/pyload_overbyrn.plg -O - | grep "<\!ENTITY plgver" | cut -d\" -f2)
+      if [ "$VERSION" == "" ]; then
+        VERSION=Unknown
+      fi
+    ;;
+  esac
+  echo -n "$VERSION"
+}
+
+pyload_appver()
+{
+  case "$1" in
+    'local')
+      VERSION=$(/usr/bin/python $INSTALLDIR/pyLoadCore.py -v | awk '{print $2}')
+	  if [ "$VERSION" == "" ]; then
+        VERSION=Unknown
+	  fi	
+    ;;
+    'remote')
+      VERSION=$(wget --no-check-certificate -q https://raw.github.com/pyload/pyload/stable/pyLoadCore.py -O - | grep -m 1 "CURRENT_VERSION" | cut -d\' -f2)
+      if [ "$VERSION" == "" ]; then
+        VERSION=Unknown
+      fi
+    ;;
+  esac
+  echo -n "$VERSION"
+}
+
+pyload_getver()
+{
+  if [[ ! -z $1 && ! -z $2 ]]; then
+  case "$1" in
+    'plg')
+      pyload_plgver $2
+    ;;
+    'app')
+      pyload_appver $2
+    ;;
+  esac
+  else
+    echo "usage $0 getver plg|app local|remote"
+  fi
+}
+
+pyload_commithist()
+{
+  # use the GitHub API to retrieve the commit history for file passed as argument to this function
+  # this is done in two phases;
+  # 1. obtain the SHA hash for the most recent commit of the given file
+  # 2. construct URL which will present a consolidated list of commits from most recent to oldest for given file
+  if [ ! -z "$1" ]; then
+    LAST_SHA=$(wget --no-check-certificate -q https://api.github.com/repos/overbyrn/UnRAID/commits?path=$1 -O - | grep -Pom 1 '"sha":.*?[^\\]",' | sed 's/[\",]//g' | cut -d' ' -f2)
+    if [ ! -z "$LAST_SHA" ]; then
+      COMMIT_URL=https://github.com/overbyrn/UnRAID/commits/$LAST_SHA/$1
+      #echo "LAST_SHA = $LAST_SHA"
+      #echo "COMMIT_URL = $COMMIT_URL"
+      echo -n "$COMMIT_URL"
+    else
+      echo -n "URL could not be retrieved"
+    fi
+  else
+    echo "Error: function expects name of file to be passed as parameter"
+  fi
+}
+
+# read our configuration
+source /boot/config/plugins/pyload/pyload.cfg
+
+case "$1" in
+  'start')
+    pyload_start
+  ;;
+  'stop')
+    pyload_stop
+  ;;
+  'restart')
+    pyload_restart
+  ;;
+  'enable')
+    pyload_enable $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}
+  ;;
+  'disable')
+    pyload_disable $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11} ${12} ${13} ${14}
+  ;;
+  'install')
+    pyload_install
+  ;;
+  'buttonstart')
+    pyload_buttonstart
+  ;;
+  'datacheck')
+    pyload_datacheck
+  ;;
+  'updateplg')
+    pyload_updateplg
+  ;;
+  'updateapp')
+    pyload_updateapp
+  ;;
+  'getver')
+    pyload_getver $2 $3
+    ;;
+  'commithist')
+    pyload_commithist $2
+    ;;  
+  *)
+    echo "usage $0 start|stop|restart|enable|disable|install|buttonstart|datacheck|updateplg|getver|commithist <argv0>"
+esac
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/pyload/pyload.php">
+<INLINE>
+<![CDATA[
+<?PHP
+$pyload_cfg = parse_ini_file( "/boot/config/plugins/pyload/pyload.cfg");
+$pyload_installed = is_dir( $pyload_cfg['INSTALLDIR'] ) ? "yes" : "no";
+$pyload_localplg = shell_exec("/etc/rc.d/rc.pyload getver plg local");
+$pyload_remoteplg = shell_exec("/etc/rc.d/rc.pyload getver plg remote");
+$pyload_localapp = shell_exec("/etc/rc.d/rc.pyload getver app local"); 
+$pyload_remoteapp = shell_exec("/etc/rc.d/rc.pyload getver app remote");
+$pyload_commithist = shell_exec ( "/etc/rc.d/rc.pyload commithist pyload_overbyrn.plg" );
+if ($pyload_installed=="yes") {
+  $pyload_running = file_exists( "/var/run/pyload/pyload.pid" ) ? "yes" : "no";
+  $pyload_datacheck = shell_exec ( "/etc/rc.d/rc.pyload datacheck" );
+}
+$controls_exist = "false";
+$updates_exist = "false";
+
+?>
+
+<html>
+<head></head>
+<body>
+ 
+<div style="width: 49%; float:left; border: 0px solid black;"> 
+  <div id="title">
+    <span class="left">Status:&nbsp;<img src='/plugins/pyload/device_status.png'>
+      <?if ($pyload_installed=="yes"):?>
+        <?if ($pyload_running=="yes"):?>
+          <span class="green"><a href="http://<?=$var['NAME'];?>:<?=$pyload_cfg['INSTALL_PORT'];?>" style="color: green; text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="Click here to open pyLoad web page.&#13;Default Login:&#13;UserID: admin&#13;Passwd: admin" target="_blank"><span class="green"><b>pyLoad is RUNNING on port <?=$pyload_cfg['INSTALL_PORT'];?></b></span></a></span>
+        <?else:?>
+          <span class="red"><b>NOT RUNNING</b></span>
+        <?endif;?>
+      <?else:?>
+        <span class="red"><b>NOT INSTALLED</b></span>
+      <?endif;?>
+    </span>
+  </div>  
+  
+  <?if ($pyload_installed=="yes"): ?>
+    <div style="border: 0px solid black;">
+      <span class="left">
+        <?=$pyload_datacheck?>
+	  </span>
+    </div>  
+  <?endif;?>   
+       
+  <br>
+   
+  <div style="border: 0px solid black;">
+    <table>
+      <tr style="font-weight:bold; color:#333333; background:#F0F0F0; text-shadow:0 1px 1px #FFFFFF;">
+        <td>pyLoad Build / Plugin</td>
+        <td>Local Version</td>
+        <td>Online Version</td>
+      </tr>
+      <tr style="font-weight:bold; background:#FFFFFF;">
+        <td>pyLoad Version</td>
+        <td>
+          <?if ($pyload_localapp != "Unknown"):?>
+            <span class="green-text">v<?=$pyload_localapp?></span>
+          <?else:?>
+            <span class="red-text">UNKNOWN</span>
+          <?endif;?>
+        </td>
+        <td>
+          <?if ($pyload_remoteapp != "Unknown"):?>
+            <span class="green-text">v<?=$pyload_remoteapp?></span>
+          <?else:?>
+            <span class="red-text">UNKNOWN</span>
+          <?endif;?>
+        </td>
+      </tr>
+      <tr style="font-weight:bold; background:#FFFFFF;">
+        <td>pyLoad Plugin</td>
+        <td>
+          <?if ($pyload_localplg != "Unknown"):?>
+              <span class="green-text">v<?=$pyload_localplg?></span>
+          <?else:?>
+            <span class="red-text">UNKNOWN</span>
+          <?endif;?>
+        </td>
+        <td>
+          <?if ($pyload_remoteplg != "Unknown"):?>
+            <?if ($pyload_commithist == "URL could not be retrieved"):?>  <!-- we didnt obtain the commit history for some reason, so just display the version -->
+              <span class="green-text"><?=$pyload_remoteplg?></span>
+            <?else:?>
+              <span class="green-text">
+                <?=$pyload_remoteplg?>
+                <a href="<?=$pyload_commithist?>" style="color: green; text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="GitHub Commit History" target="_blank">
+                  <span class="green">
+                    <b>[Commit Log]</b>
+                  </span>
+                </a>
+              </span>
+            <?endif;?> 
+          <?else:?>
+            <span class="red-text">UNKNOWN</span>
+          <?endif;?>
+        </td>
+      </tr>
+    </table>
+  </div> 
+
+  <br></br>
+  
+  <div>
+    <table>
+      <tr style="font-weight:bold; color:#333333; background:#F0F0F0; text-shadow:0 1px 1px #FFFFFF;">
+        <td colspan="2">Control</td>
+      </tr>    
+    <?if ($pyload_installed=="yes"):?>
+      <?if ($pyload_running=="yes"):?>
+        <tr>
+        <td width="30%">
+          <form name="pyload_stop" method="POST" action="/update.htm" target="progressFrame">
+            <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload stop">  
+            <input type="submit" name="runCmd" value="Stop">
+          </form>      
+        </td>
+        <td>Stop pyLoad Daemon</td>
+        </tr>
+        <tr>
+        <td width="30%">
+          <form name="pyload_restart" method="POST" action="/update.htm" target="progressFrame">
+            <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload restart">    
+            <input type="submit" name="runCmd" value="Restart">
+          </form>  
+        </td>
+        <td>Restart pyLoad Daemon</td>
+        </tr>
+        <?$controls_exist = "true"?>
+      <?else:?>
+        <tr>
+        <td width="30%">
+          <form name="pyload_start" method="POST" action="/update.htm" target="progressFrame">
+            <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload buttonstart">        
+            <input type="submit" name="runCmd" value="Start">
+          </form>
+        </td>
+        <td>Start pyLoad Daemon</td>
+        </tr>
+        <?$controls_exist = "true"?>
+      <?endif;?>
+    <?else:?>
+      <tr>
+      <td width="30%">
+          <form name="pyload_install" method="POST" action="/update.htm" target="progressFrame">
+            <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload install">    
+          <input type="submit" name="runCmd" value="Install">
+        </form>
+      </td>
+      <td>Install pyLoad Application</td>
+      </tr>
+      <?$controls_exist = "true"?>
+    <?endif;?>
+      
+    <?if ($controls_exist=="false"):?>
+      <tr>
+        <td colspan="2" align="center">No Control Actions available</td>
+      </tr>
+    <?endif;?>
+    </table>
+  </div>  
+  <br></br> 
+  <div style="border: 0px solid black;">
+    <table>
+      <tr style="font-weight:bold; color:#333333; background:#F0F0F0; text-shadow:0 1px 1px #FFFFFF;">
+        <td colspan="2">Updates</td>
+      </tr>
+      <?if (($pyload_remoteplg != $pyload_localplg) && ($pyload_localplg != "Unknown") && ($pyload_remoteplg != "Unknown")): ?>
+        <tr>
+        <td width="30%">
+          <form name="pyload_updateplg" method="POST" action="/update.htm" target="progressFrame">
+            <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload updateplg">
+            <input type="submit" name="runCmd" value="Update Plugin">
+          </form>
+        </td>
+        <td><span class="red-text">An update is available to the plugin</span></td>
+        </tr>
+        <?$updates_exist="true"?>
+      <?endif;?>
+
+      <?if (($pyload_remoteapp != $pyload_localapp) && ($pyload_localapp != "Unknown") && ($pyload_remoteapp != "Unknown")): ?>
+        <tr>
+          <td width="30%">
+          <form name="pyload_updateapp" method="POST" action="/update.htm" target="progressFrame">
+            <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload updateapp">
+            <input type="submit" name="runCmd" value="Update pyLoad">
+          </form>
+          </td>
+          <td><span class="red-text">An update is available to pyLoad</span></td>
+        </tr>
+        <?$updates_exist="true"?>
+      <?endif;?>      
+      
+      
+      <?if ($updates_exist=="false"):?>
+        <tr>
+          <td colspan="2" align="center">No updates available at this time</td>
+        </tr>
+      <?endif;?>
+    </table>
+  </div>
+  <br></br>
+  <br></br>
+</div>
+
+<div style="width: 49%; float:right; border: 0px solid black;">
+  <div id="title">
+    <span class="left">Configuration:&nbsp;<img src='/plugins/pyload/new_config.png'></span>
+  </div>
+    <form name="pyload_settings" method="POST" action="/update.htm" target="progressFrame" onsubmit=" validateForm();">
+    <input type="hidden" name="cmd" value="/etc/rc.d/rc.pyload">
+      <table class="settings">
+        <tr>
+          <td>Enable pyLoad:</td>
+          <td>
+            <select name="arg1" id="arg1" size="1"  onChange="checkRUNNING(this.form);">
+              <?=mk_option($pyload_cfg['SERVICE'], "disable", "No");?>
+              <?=mk_option($pyload_cfg['SERVICE'], "enable", "Yes");?>
+            </select>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Run as user:</td>
+          <td>
+            <select name="arg2" id="arg2" size="1" title="User which will run pyLoad daemon process" onChange="checkRUNNING(this.form);">
+              <?=mk_option($pyload_cfg['RUNAS'], "nobody", "nobody");?>
+              <?=mk_option($pyload_cfg['RUNAS'], "root", "root");?>
+              </select>
+          </td>
+        </tr>
+        <tr>
+          <td>Install Directory:</td>
+          <td><input type="text" name="arg3" id="arg3" title="Directory where pyLoad will be installed, e.g. /mnt/cache/.pyload" value="<?=$pyload_cfg['INSTALLDIR'];?>"></td>
+        </tr>
+        <tr>
+          <td>Create Logs:</td>
+          <td>
+            <select name="arg4" id="arg4" size="1" title="Should pyLoad create log files?" onChange="checkRUNNING(this.form);">
+             <?=mk_option($pyload_cfg['CREATE_LOG'], "False", "No");?>
+             <?=mk_option($pyload_cfg['CREATE_LOG'], "True", "Yes");?>
+             </select>
+          </td>
+        </tr>        
+        <tr>
+          <td>Log File Directory:</td>
+          <td><input type="text" name="arg5" id="arg5" title="Directory where pyLoad will keep logs, e.g. /mnt/cache/.pyload/logs" value="<?=$pyload_cfg['LOG_DIR'];?>"></td>
+        </tr>
+        <tr>
+          <td>Log Count:</td>
+          <td><input type="text" name="arg6" id="arg6" title="Number of logs pyLoad will keep before deleting old ones" value="<?=$pyload_cfg['LOG_COUNT'];?>"></td>
+        </tr>        
+        <tr>
+          <td>Download Directory:</td>
+          <td><input type="text" name="arg7" id="arg7" title="Where downloaded files will be placed" value="<?=$pyload_cfg['DOWNLOAD_DIR'];?>"></td>
+        </tr>
+        <tr>
+          <td>Minimum Free Space:</td>
+          <td><input type="text" name="arg8" id="arg8" title="pyLoad will stop downloading when it reaches this min-free-space (in MB)" value="<?=$pyload_cfg['MIN_FREE_SPACE'];?>"></td>
+        </tr>
+        <tr>
+          <td>Installation Host:</td>
+          <td><input type="text" name="arg9" id="arg9" title="IP Address pyLoad WebGui listens on. e.g. 0.0.0.0" value="<?=$pyload_cfg['INSTALL_HOST'];?>"></td>
+        </tr>
+        <tr>
+          <td>Port:</td>
+          <td><input type="text" name="arg10" id="arg10" title="Port pyLoad WebGui listens on (must be higher than 1024)" value="<?=$pyload_cfg['INSTALL_PORT'];?>"></td>
+        </tr>
+        <tr>
+          <td>Maximum Parallel Downloads:</td>
+          <td><input type="text" name="arg11" id="arg11" title="The number of downloads that should run at the same time.  A high number could effect your internet speed" value="<?=$pyload_cfg['MAX_PARALLEL_DOWNLOAD'];?>"></td>
+        </tr>
+          <td>Limit Download Speed:</td>
+          <td>
+            <select name="arg12" size="1" id="arg12" title="Limit the download speed so as to not affect the remainder of your internet activity" onChange="checkRUNNING(this.form);">
+              <?=mk_option($pyload_cfg['LIMIT_DOWNLOAD_SPEED'], "False", "No");?>
+              <?=mk_option($pyload_cfg['LIMIT_DOWNLOAD_SPEED'], "True", "Yes");?>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td>Download Speed:</td>
+          <td><input type="text" name="arg13" id="arg13" title="Set the download speed maximum, in KB/s. Set to -1 for no limit" value="<?=$pyload_cfg['DOWNLOAD_SPEED'];?>"></td>
+        </tr>   
+        <tr>
+          <td>Maximum Connections per Download:</td>
+          <td><input type="text" name="arg14" id="arg14" title="The maximum number of connections per download" value="<?=$pyload_cfg['MAX_CONNECTIONS_PER_DOWNLOAD'];?>"></td>
+        </tr>            
+        <tr>      
+      </table>
+    <div align="center">
+      <hr size="3" align="center" width="75%" color="grey" style="margin-top:20px;margin-bottom:18px">
+      <input type="submit" name="runCmd" value="Apply"><button type="button" onClick="done();">Done</button>
+    </div>
+  </form>
+  <br />
+</div>
+
+<script type="text/javascript">
+function validateForm()
+{
+  document.getElementById('arg2').disabled = false;
+  document.getElementById('arg3').disabled = false;
+  document.getElementById('arg4').disabled = false;
+  document.getElementById('arg5').disabled = false;
+  document.getElementById('arg6').disabled = false;
+  document.getElementById('arg7').disabled = false;
+  document.getElementById('arg8').disabled = false;
+  document.getElementById('arg9').disabled = false;
+  document.getElementById('arg10').disabled = false;
+  document.getElementById('arg11').disabled = false;
+  document.getElementById('arg12').disabled = false;
+  document.getElementById('arg13').disabled = false;
+  document.getElementById('arg14').disabled = false;
+}
+
+function checkRUNNING(form)
+{
+  if ("<?=$pyload_running;?>" == "yes") {
+    form.arg2.disabled = true;
+    form.arg3.disabled = true;
+    form.arg4.disabled = true;
+    form.arg5.disabled = true;
+    form.arg6.disabled = true;
+    form.arg7.disabled = true;
+    form.arg8.disabled = true;
+    form.arg9.disabled = true;
+    form.arg10.disabled = true;
+    form.arg11.disabled = true;
+    form.arg12.disabled = true;
+    form.arg13.disabled = true;
+    form.arg14.disabled = true;
+  }
+}
+
+checkRUNNING(document.pyload_settings);
+</script>
+
+</body>
+</html>
+]]>
+</INLINE>
+</FILE>
+
+<!-- event handler -->
+<FILE Name="/usr/local/emhttp/plugins/pyload/event/disks_mounted" Mode="0770">
+<INLINE>
+#!/bin/bash
+#load plugin config
+source /boot/config/plugins/pyload/pyload.cfg
+#Start pyload if enabled
+[ $SERVICE = "enable" ] &amp;&amp; /etc/rc.d/rc.pyload start
+</INLINE>
+</FILE>
+
+<!-- event handler -->
+<FILE Name="/usr/local/emhttp/plugins/pyload/event/unmounting_disks" Mode="0770">
+<INLINE>
+#!/bin/bash
+/etc/rc.d/rc.pyload stop
+</INLINE>
+</FILE>
+
+<FILE Name="/tmp/plugin-install" Run="/bin/bash">
+<INLINE>
+#!/bin/bash
+
+# create pyload-writable directory for pid file
+[ ! -e /var/run/pyload ] &amp;&amp; mkdir -m 0777 /var/run/pyload 2>/dev/null
+
+rm /tmp/plugin-install
+</INLINE>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/pyload/pyload.page">
+<INLINE>
+Menu="NetworkServices"
+Icon="pyload.png"
+Version="&plgver;"
+Author="&author;"
+Type="php"
+Title="&plugin;"
+</INLINE>
+</FILE>
+
+<FILE Name="/var/log/plugins/pyload">
+<INLINE>
+&plugin; v&plgver;
+</INLINE>
+</FILE>
+
+<FILE Name="/tmp/plugin-development" Run="/bin/bash">
+<INLINE>
+#!/bin/bash
+if [ "&dev;" == "true" ]; then
+  if [ -f /boot/config/plugins/pyload.php ]; then
+    rm -f &gui;/pyload/pyload.php
+    ln -s /boot/config/plugins/pyload.php &gui;/pyload/pyload.php
+  else
+    mv &gui;/pyload/pyload.php /boot/config/plugins/pyload.php
+    ln -s /boot/config/plugins/pyload.php &gui;/pyload/pyload.php
+  fi
+  if [ -f /boot/config/plugins/pyloadctl.php ]; then
+    rm -f &gui;/pyload/pyloadctl.php
+    ln -s /boot/config/plugins/pyloadctl.php &gui;/pyload/pyloadctl.php
+  else
+    mv &gui;/pyload/pyloadctl.php /boot/config/plugins/pyloadctl.php
+    ln -s /boot/config/plugins/pyloadctl.php &gui;/pyload/pyloadctl.php
+  fi
+  if [ -f /boot/config/plugins/rc.pyload ]; then
+    rm -f /etc/rc.d/rc.pyload
+    ln -s /boot/config/plugins/rc.pyload /etc/rc.d/rc.pyload
+  else
+    mv /etc/rc.d/rc.pyload /boot/config/plugins/rc.pyload
+    ln -s /boot/config/plugins/rc.pyload /etc/rc.d/rc.pyload
+  fi
+fi
+
+rm /tmp/plugin-development
+</INLINE>
+</FILE>
+
+</PLUGIN>

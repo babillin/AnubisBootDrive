@@ -1,0 +1,102 @@
+END USER LICENSE AGREEMENT FOR LIME TECHNOLOGY SOFTWARE PRODUCT
+AUGUST 26, 2005
+JUNE 11, 2008
+DECEMBER 1, 2013
+
+Lime Technology licenses the unRAID (tm) Operating System software to you
+subject to the terms contained in this end user license agreement ("EULA").
+Read the terms of this EULA carefully.  By installing, copying or otherwise
+using the software (as defined below), you agree to be bound by the terms
+of this EULA.  If you do not agree with the terms of this EULA, do not install,
+copy or use the software.
+
+NOTICE TO CUSTOMER
+This EULA is a contract between you (either an individual or any entity) and
+Lime Technology ("Lime Technology"), which governs your use
+of the Lime Technology software product that accompanies this EULA and
+related software components, which may include associated media, printed
+materials, and online or electronic documentation.
+
+DEFINITIONS
+This Lime Technology unRAID Operating System software package includes the
+software product unRAID System Management Utility (emhttp and webGui), the
+User Share File System (shfs), and various Open Source Software components.
+In this EULA, the Lime Technology Operating System software and associated media,
+printed materials, and online or electronic documentation are collectively
+referred to as the "Software".
+
+"Open Source Software" means various open source software components, including,
+without limitation, Linux, Samba, Netatalk, DHCP, and GlibC licensed under the
+terms of applicable open source license agreements included in the materials
+relating to such software.
+
+OPEN SOURCE SOFTWARE
+The Open Source Software is composed of individual software components, each
+of which has its own copyright and its own applicable license conditions.
+You must review the licenses within the individual packages to understand
+your rights under them.  Copyrights to the Open Source Software are held by the
+copyright holders indicated in the notices in the corresponding source files
+or in other materials accompanying the software package.
+
+LICENSE LIMITATION
+You may not copy the Software except for a reasonable number of
+machine-readable copies of the Software for backup or archival purposes.
+You may not remove any titles, trademarks or trade names, copyright notices,
+legends, or other proprietary markings on the Software.  You are not granted
+any rights to any trademarks or service marks of Lime Technology.
+Lime Technology retains all rights not expressly granted to you.
+
+PROPRIETARY RIGHTS RESERVED BY LIME TECHNOLOGY
+Lime Technology retains all right, title, and interest in and to the
+Software and in all related copyrights, trade secrets, patents, trademarks,
+and any other intellectual and industrial property and proprietary rights,
+including registrations, applications, renewals, and extensions of such
+rights.
+
+TERMINATION
+Lime Technology may terminate this EULA if you fail to comply with any
+term of this EULA.  In the event of termination, you must destroy all copies
+of the Software and remove all copies of the Software from the personal
+computer(s) on which it is installed.
+
+GOVERNMENT RESTRICTIONS
+You may not export or re-export the Software except in compliance with the
+United States Export Administration Act and the related rules and
+regulations and similar non-U.S. government restrictions, if applicable.
+The Software and accompanying documentation are deemed to be "commercial
+computer software" and "commercial computer software documentation,"
+respectively, pursuant to DFAR Section 227.7202 and FAR Section 12.212(b),
+as applicable.  Any use, modification, reproduction, release, performing,
+displaying, or disclosing of the Software by the U.S. Government shall be
+governed solely by the terms of this EULA.
+
+LIMITATION OF LIABILITY
+In no event will Lime Technology be liable for any lost profits or
+business opportunities, loss of use, business interruption, loss of data, or
+any other indirect, special, incidental, or consequential damages under any
+theory of liability, whether based in contract, tort, negligence, product
+liability, or otherwise.  This limitation shall apply regardless of whether
+Lime Technology has been advised of the possibility of such damages.
+
+GENERAL
+This EULA is governed by the laws of the State of California, U.S.A. without
+regard to conflict of law principles.  The United Nations Convention for the
+International Sale of Goods shall not apply.  This EULA is the entire
+agreement between us and supersedes the terms of any purchase orders and any
+other communications or advertising with respect to the Software.  If any
+provision of this EULA is held invalid, the remainder of this EULA shall
+continue in full force and effect.  This EULA may be modified only by written
+agreement signed by authorized representatives of you and Lime Technology.
+
+CONTACT INFORMATION
+If you have any questions about this EULA, or if you want to contact Lime
+Technology for any reason, please direct all correspondence to:
+  Lime Technology
+  5931 Sea Lion Place #104
+  Carlsbad CA 92010 USA
+or email:
+  support@lime-technology.com.
+
+unRAID is a registered trademark (#4,406,621) of Lime Technology.
+
+EOF
