@@ -1,0 +1,427 @@
+<?xml version='1.0' standalone='yes'?>
+<PLUGIN>
+
+<!--
+This UnRaid plugin will install and update the plex media server addon.
+-->
+
+<FILE Name="/boot/config/plugins/plexupdater/plexupdater.png">
+<URL>--no-check-certificate https://raw.github.com/Benni-chan/unraid_plugins/master/support_files/plexupdater.png</URL>
+</FILE>
+
+<!-- clean up previous install -->
+<FILE Name="/tmp/plexupdater-cleanup" Run="/bin/bash">
+<INLINE>
+<![CDATA[
+[ -d /usr/local/emhttp/plugins/plexupdater ] && rm -f -R /usr/local/emhttp/plugins/plexupdater
+[ -f /usr/local/sbin/plexupdater ] && rm -f /usr/local/sbin/plexupdater
+[ -f /etc/cron.daily/plexupdater ] && rm -f /etc/cron.daily/plexupdater
+[ -f /boot/config/plugins/plexupdater/plgver.txt ] && rm -f /boot/config/plugins/plexupdater/plgver.txt
+rm /tmp/plexupdater-cleanup
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/plexupdater/settings.ini">
+<INLINE>
+<![CDATA[
+# Plexupdater configuration:
+PLEXPASS="false"
+USERNAME=""
+PASSWORD=""
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/boot/config/plugins/plexupdater/plgver.txt">
+<INLINE>
+<![CDATA[
+1.9.2
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/usr/local/sbin/plexupdater" Mode="0770">
+<INLINE>
+<![CDATA[
+#!/bin/sh
+# write_config|update|install PMS.
+
+write_config()
+{
+	echo "# Plexupdater configuration:" > /boot/config/plugins/plexupdater/settings.ini
+	echo "PLEXPASS=\"$PLEXPASS\"" >> /boot/config/plugins/plexupdater/settings.ini
+	echo "USERNAME=\"$USERNAME\"" >> /boot/config/plugins/plexupdater/settings.ini
+	echo "PASSWORD=\"$PASSWORD\"" >> /boot/config/plugins/plexupdater/settings.ini
+}
+
+plexupdater_config()
+{
+	PLEXPASS="$1"
+	USERNAME="$2"
+	PASSWORD="$3"
+	write_config
+}
+
+compareVersions()
+{
+	typeset IFS='.'
+	typeset -a v1=( $1 )
+	typeset -a v2=( $2 )
+	typeset    n diff
+	
+	for (( n=0; n<4; n+=1 )); do
+		diff=$((v1[n]-v2[n]))
+		if [ $diff -ne 0 ] ; then
+			[ $diff -lt 0 ] && echo '-1' || echo '1'
+			return
+		fi
+	done
+	echo  '0'
+}
+
+rawurlencode() {
+  local string="${1}"
+  local strlen=${#string}
+  local encoded=""
+
+  for (( pos=0 ; pos<strlen ; pos++ )); do
+     c=${string:$pos:1}
+     case "$c" in
+        [-_.~a-zA-Z0-9] ) o="${c}" ;;
+        * )               printf -v o '%%%02x' "'$c"
+     esac
+     encoded+="${o}"
+  done
+  echo "${encoded}"
+}
+
+plexupdater_check_version()
+{
+	#get stable version
+	STABLEURL=`wget -q --no-check-certificate -O - "https://plex.tv/downloads" | grep -o '[^"'"'"']*unRAID.txz'`
+	
+	STABLEVERSION=`echo $STABLEURL | sed -e 's/^[0-9A-Za-z./:-]*PlexMediaServer-//' -e 's/-unRAID.txz//'`
+	STABLESHORTVERSION=`echo $STABLEVERSION | sed -e 's/-[0-9A-Za-z]*//'`
+	
+	URL=$STABLEURL
+	NEWVERSION=$STABLEVERSION
+	NEWSHORTVERSION=$STABLESHORTVERSION
+	
+	#get plexpass version, if plexpass is activated
+	if [[ "$PLEXPASS" == "true" && "$USERNAME" != "" && "$PASSWORD" != "" ]]; then
+		#preview version
+        	#get token and session cookie
+                COOKIEPATH=/boot/config/plugins/plexupdater/cookies.txt
+                PLEXPASSTOKEN=($(wget -q --no-check-certificate --keep-session-cookies --save-cookies $COOKIEPATH -O - "https://plex.tv/users/sign_in" | grep -oP "<input name=\"authenticity_token\".*?value=\".*?\" />" | grep -oP "name=\".*?\"| value=\".*?\"" |cut -d\" -f 2))
+                for (( i = 0; i < ${#SI[*]}; i += 2)); do
+                        if [[ ${PLEXPASSTOKEN[i]} == *token* ]]; then
+                                PLEXPASSPARAMS="$PM${SI[i]}=${SI[i+1]}&"
+                        fi
+                done
+                #PLEXPASSPARAMS="${PLEXPASSPARAMS}user[login]=$(rawurlencode ${USERNAME})&user[password]=$(rawurlencode ${PASSWORD})"
+				PLEXPASSPARAMS="${PLEXPASSPARAMS}user[login]=${USERNAME}&user[password]=${PASSWORD}"
+				
+                #do login and save cookies
+                PLEXPASSSIGNIN=`wget -q --no-check-certificate --keep-session-cookies --save-cookies $COOKIEPATH --load-cookies $COOKIEPATH --post-data $PLEXPASSPARAMS -O - "https://plex.tv/users/sign_in"`
+                PLEXPASSURL=`wget -q --no-check-certificate --load-cookies $COOKIEPATH -O - "https://plex.tv/downloads?channel=plexpass" | grep -o '[^"'"'"']*unRAID.txz'`
+
+
+
+		PLEXPASSVERSION=`echo $PLEXPASSURL | sed -e 's/^[0-9A-Za-z./:-]*PlexMediaServer-//' -e 's/-unRAID.txz//'`
+		PLEXPASSSHORTVERSION=`echo $PLEXPASSVERSION | sed -e 's/-[0-9A-Za-z]*//'`
+		
+		if [[ `compareVersions $STABLESHORTVERSION $PLEXPASSSHORTVERSION` < 0 ]]; then
+			URL=$PLEXPASSURL
+			NEWVERSION=$PLEXPASSVERSION
+			NEWSHORTVERSION=$PLEXPASSSHORTVERSION
+		fi
+	fi
+	
+	#get currently installed version
+	CURRENTVERSION=`/etc/rc.d/rc.plexmediaserver version | sed -e 's/^v//'`
+	CURRENTSHORTVERSION=`echo $CURRENTVERSION | sed -e 's/-[0-9A-Za-z]*//'`
+
+}
+
+plexupdater_version()
+{
+	plexupdater_check_version
+	
+	echo $NEWVERSION
+	
+}
+
+plexupdater_update()
+{
+	plexupdater_check_version
+	
+	#get filename from url
+	NEWFILENAME=`echo $URL | sed -e 's/^[0-9A-Za-z./:-]*\///'`
+	
+	if [ -e "/etc/rc.d/rc.plexmediaserver" ]; then
+		/etc/rc.d/rc.plexmediaserver stop
+	fi
+	
+	rm -f /boot/extra/PlexMediaServer-*.txz
+	
+	if [ ! -d "/boot/extra" ]; then
+		mkdir /boot/extra
+	fi
+	
+	cd /boot/extra
+	echo "Downloading Plex Media Server $NEWVERSION..."
+	wget -q $URL
+	echo "Installing Plex Media Server $NEWVERSION..."
+	installpkg /boot/extra/$NEWFILENAME
+	
+	if [[ "$CURRENTVERSION" != "" ]]; then
+		CMDLINE="/etc/rc.d/rc.plexmediaserver start"
+		nohup $CMDLINE > /dev/null 2>&1 &
+	fi
+	
+	sleep 3
+	echo "... OK"
+	sleep 1
+}
+
+plexupdater_updateplg()
+{
+	cd /boot/config/plugins
+	[ -f plexupdater.plg.old ] && rm -f plexupdater.plg.old
+	if [ -f plexupdater.plg ]; then
+		mv plexupdater.plg plexupdater.plg.old
+	fi
+	echo "Updating plugin"
+	wget -q --no-check-certificate https://raw.github.com/Benni-chan/unraid_plugins/master/plexupdater.plg
+	/usr/local/sbin/installplg /boot/config/plugins/plexupdater.plg
+}
+plexupdater_downgradeplg()
+{
+	cd /boot/config/plugins
+	if [ -f plexupdater.plg.old ]; then
+		rm -f /plexupdater.plg
+		mv plexupdater.plg.old plexupdater.plg
+		echo "downgrading plugin"
+		/usr/local/sbin/installplg /boot/config/plugins/plexupdater.plg
+	fi
+}
+
+plexupdater_checkupdate()
+{
+	plexupdater_check_version
+	
+	#check only, if simpleFeatures is installed
+	if [ -e /usr/local/emhttp/plugins/simpleFeatures/include/Notify.sh ]; then
+		if [[ `compareVersions $CURRENTSHORTVERSION $NEWSHORTVERSION` < 0 ]]; then
+			/usr/local/emhttp/plugins/simpleFeatures/include/Notify.sh -plugin "Plex Updater" -subject "new update found" -description "Plex Media Server: $NEWSHORTVERSION" -importance "default"
+		fi
+	fi
+}
+
+
+# read our configuration
+source /boot/config/plugins/plexupdater/settings.ini
+
+case "$1" in
+	'install')
+		plexupdater_update
+	;;
+	'update')
+		plexupdater_update
+	;;
+	'version')
+		plexupdater_version
+	;;
+	'config')
+		plexupdater_config $2 $3 $4
+	;;
+	'updateplg')
+		plexupdater_updateplg
+	;;
+	'downgradeplg')
+		plexupdater_downgradeplg
+	;;
+	'checkupdate')
+		plexupdater_checkupdate
+	;;
+	*)
+		echo "usage $0 install|update|version|updateplg|downgradeplg|checkupdate"
+esac
+
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/plexupdater/plexupdater.page">
+<INLINE>
+<![CDATA[
+Menu="NetworkServices"
+Icon="plexupdater.png"
+Version="1.9.2"
+Author="Benni-chan"
+Type="php"
+Title="PMS Updater"
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/plexupdater/plexupdater.png">
+<LOCAL>/boot/config/plugins/plexupdater/plexupdater.png</LOCAL>
+</FILE>
+
+<FILE Name="/usr/local/emhttp/plugins/plexupdater/plexupdater.php">
+<INLINE>
+<![CDATA[
+<?PHP
+$plex_cfg = parse_ini_file( "/boot/config/plugins/plexupdater/settings.ini");
+$plex_installed = file_exists("/etc/rc.d/rc.plexmediaserver") ? "yes" : "no";
+$plex_version = substr(trim(shell_exec( "/etc/rc.d/rc.plexmediaserver version" )),1);
+$plex_newversion = trim(shell_exec( "/usr/local/sbin/plexupdater version" ));
+$plex_rollback = file_exists( "boot/config/plugins/plexupdater.plg.old" ) ? "yes" : "no";
+$plex_plgver = shell_exec ( "cat /boot/config/plugins/plexupdater/plgver.txt" );
+?>
+
+<div style="width: 49%; float:left">
+	<div id="title">
+		<span class="left">Status:
+			<?if ($plex_installed=="yes"):?>
+				<span class="green"><b>INSTALLED</b></span></a><span style="font-size:12px;"> with version: <b><?=$plex_version?></b></span>
+			<?else:?>
+				<span class="red"><b>NOT INSTALLED</b></span>
+			<?endif;?>
+		</span>
+	</div>
+	<?if ($plex_installed=="yes"):?>
+		<?if ($plex_version == $plex_newversion):?>
+			<div style="position:relative;float:left;width:100%;text-align:center;margin-bottom:24px">
+				<form name="plexupdater_install" method="POST" action="/update.htm" target="progressFrame">
+					<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater update">
+					<input type="submit" name="runCmd" value="Reinstall">
+				</form>
+			</div>
+		<?else:?>
+			<div style="position:relative;float:left;width:100%;text-align:center;margin-bottom:24px">
+				New Version: <?=$plex_newversion?><br>
+				<form name="plexupdater_install" method="POST" action="/update.htm" target="progressFrame">
+					<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater update">
+					<input type="submit" name="runCmd" value="Update">
+				</form>
+			</div>
+		<?endif;?>
+	<?else:?>
+		<div style="position:relative;float:left;width:100%;text-align:center;margin-bottom:24px">
+			New Version: <?=$plex_newversion?><br>
+			<form name="plexupdater_install" method="POST" action="/update.htm" target="progressFrame">
+				<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater install">
+				<input type="submit" name="runCmd" value="Install">
+			</form>
+		</div>
+	<?endif;?>
+	
+	<? if ($plex_rollback=="yes"): ?>
+	<div style="position:relative;float:left;width:50%;text-align:right;margin-bottom:24px">
+			<form name="plexupdater_update1" method="POST" action="/update.htm" target="progressFrame">
+					<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater updateplg">
+					<input type="submit" name="runCmd" value="Update PLG">
+			</form>
+	</div>
+	<div style="position:relative;float:left;width:50%;text-align:left;margin-bottom:24px">
+		<form name="plexupdater_downgradedate" method="POST" action="/update.htm" target="progressFrame">
+					<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater downgradeplg">
+					<input type="submit" name="runCmd" value="Downgrade PLG">
+			</form>
+	</div>
+	<?else:?>
+	<div style="position:relative;float:left;width:100%;text-align:center;margin-bottom:24px">
+			<form name="plexupdater_update" method="POST" action="/update.htm" target="progressFrame">
+				<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater updateplg">			
+				<input type="submit" name="runCmd" value="Update PLG">
+			</form>
+		</div>
+	<?endif;?>
+	
+	<br/>
+	<p style="margin-left:10px;"><b>Plug-in Version: <?=$plex_plgver;?></b></p>
+	
+</div>
+
+<div style="width: 49%; float:right">
+	<div id="title">
+		<span class="left">Configuration:</span>
+	</div>
+	<form name="plexupdater_settings" method="POST" action="/update.htm" target="progressFrame" onsubmit="encodeInput(this)">
+		<input type="hidden" name="cmd" value="/usr/local/sbin/plexupdater config">
+	      <table class="settings">
+	         <tr>
+	         <td>Use Plexpass Pre-Releases:</td>
+	         <td><select name="arg1" size="1" onChange="checkPLEX_PLEXPASS(this.form);">
+	            <?=mk_option($plex_cfg['PLEXPASS'], "false", "No");?>
+	            <?=mk_option($plex_cfg['PLEXPASS'], "true", "Yes");?>
+	            </select></td>
+	         </tr>
+	         <tr id="username_row">
+	         <td>Username:</td>
+	         <td><input type="text" name="arg2" maxlength="60" value="<?=urldecode($plex_cfg['USERNAME']);?>"></td>
+	         </tr>
+	         <tr id="password_row">
+	         <td>Password:</td>
+	         <td><input type="password" name="arg3" maxlength="60" value="<?=urldecode($plex_cfg['PASSWORD']);?>"></td>
+	         </tr>
+		 </table>
+		 <div align="center">
+		 	<hr size="3" align="center" width="75%" color="grey" style="margin-top:20px;margin-bottom:18px" >
+		 	<input type="submit" name="runCmd" value="Apply" style="margin-bottom:35px">
+		 	<button type="button" style="margin-bottom:35px" onClick="done();">Done</button>
+		 </div>
+	</form>
+	<br />
+</div>
+
+<script type="text/javascript">
+function checkPLEX_PLEXPASS(form)
+{
+	if (form.arg1.selectedIndex < 1 )
+		{
+			document.getElementById("username_row").style.display = 'none';
+			document.getElementById("password_row").style.display = 'none';
+		}
+		else
+		{
+			document.getElementById("username_row").style.display = '';
+			document.getElementById("password_row").style.display = '';
+		}
+}
+checkPLEX_PLEXPASS(document.plex_settings);
+
+function encodeInput(form)
+{
+	// Encode the value of the query
+	form.elements['arg2'].value = encodeURIComponent(form.elements['arg2'].value);
+	form.elements['arg3'].value = encodeURIComponent(form.elements['arg3'].value);
+}
+</script>
+
+]]>
+</INLINE>
+</FILE>
+
+<FILE Name="/etc/cron.daily/plexupdater" Mode="0777">
+<INLINE>
+<![CDATA[
+#!/bin/bash
+/usr/local/sbin/plexupdater checkupdate
+]]>
+</INLINE>
+</FILE>
+
+
+<FILE Name="/var/log/plugins/plexupdater">
+<INLINE>
+<![CDATA[
+
+]]>
+</INLINE>
+</FILE>
+
+</PLUGIN>
